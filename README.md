@@ -61,7 +61,7 @@ This bot (and the source code here) might not be easy to edit for inexperienced 
 
 ## Docker
 Once you have the JMusicBot-0.x.x.jar and your config.txt ready in a directory, download the Dockerfile from here. Then, cd in the directory and do: 
-1. docker build -t JMusicBot-0.x.x.jar
-2. docker run JMusicBot-0.x.x.jar
+1. docker build - < Dockerfile -t JMusicBot-0.x.x.jar
+2. docker run -d JMusicBot-0.x.x.jar
 
 ## THIS IS NOT MY PROJECT I ONLY MADE THE DOCKERFILE. :)
