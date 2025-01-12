@@ -19,10 +19,12 @@ import com.jagrosh.jdautilities.command.GuildSettingsManager;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import net.dv8tion.jda.api.entities.Guild;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -31,14 +33,16 @@ import org.slf4j.LoggerFactory;
  */
 public class SettingsManager implements GuildSettingsManager<Settings>
 {
-    private final static double SKIP_RATIO = .55;
+    private final static Logger LOG = LoggerFactory.getLogger("Settings");
+    private final static String SETTINGS_FILE = "serversettings.json";
     private final HashMap<Long,Settings> settings;
 
     public SettingsManager()
     {
         this.settings = new HashMap<>();
+
         try {
-            JSONObject loadedSettings = new JSONObject(new String(Files.readAllBytes(OtherUtil.getPath("serversettings.json"))));
+            JSONObject loadedSettings = new JSONObject(new String(Files.readAllBytes(OtherUtil.getPath(SETTINGS_FILE))));
             loadedSettings.keySet().forEach((id) -> {
                 JSONObject o = loadedSettings.getJSONObject(id);
 
@@ -55,16 +59,28 @@ public class SettingsManager implements GuildSettingsManager<Settings>
                         o.has("default_playlist")? o.getString("default_playlist")           : null,
                         o.has("repeat_mode")     ? o.getEnum(RepeatMode.class, "repeat_mode"): RepeatMode.OFF,
                         o.has("prefix")          ? o.getString("prefix")                     : null,
-                        o.has("skip_ratio")      ? o.getDouble("skip_ratio")                 : SKIP_RATIO));
+                        o.has("skip_ratio")      ? o.getDouble("skip_ratio")                 : -1,
+                        o.has("queue_type")      ? o.getEnum(QueueType.class, "queue_type")  : QueueType.FAIR));
             });
+        } catch (NoSuchFileException e) {
+            // create an empty json file
+            try {
+                LOG.info("serversettings.json will be created in " + OtherUtil.getPath("serversettings.json").toAbsolutePath());
+                Files.write(OtherUtil.getPath("serversettings.json"), new JSONObject().toString(4).getBytes());
+            } catch(IOException ex) {
+                LOG.warn("Failed to create new settings file: "+ex);
+            }
+            return;
         } catch(IOException | JSONException e) {
-            LoggerFactory.getLogger("Settings").warn("Failed to load server settings (this is normal if no settings have been set yet): "+e);
+            LOG.warn("Failed to load server settings: "+e);
         }
+
+        LOG.info("serversettings.json loaded from " + OtherUtil.getPath("serversettings.json").toAbsolutePath());
     }
-    
+
     /**
      * Gets non-null settings for a Guild
-     * 
+     *
      * @param guild the guild to get settings for
      * @return the existing settings, or new settings for that guild
      */
@@ -73,17 +89,17 @@ public class SettingsManager implements GuildSettingsManager<Settings>
     {
         return getSettings(guild.getIdLong());
     }
-    
+
     public Settings getSettings(long guildId)
     {
         return settings.computeIfAbsent(guildId, id -> createDefaultSettings());
     }
-    
+
     private Settings createDefaultSettings()
     {
-        return new Settings(this, 0, 0, 0, 100, null, RepeatMode.OFF, null, SKIP_RATIO);
+        return new Settings(this, 0, 0, 0, 100, null, RepeatMode.OFF, null, -1, QueueType.FAIR);
     }
-    
+
     protected void writeSettings()
     {
         JSONObject obj = new JSONObject();
@@ -104,14 +120,16 @@ public class SettingsManager implements GuildSettingsManager<Settings>
                 o.put("repeat_mode", s.getRepeatMode());
             if(s.getPrefix() != null)
                 o.put("prefix", s.getPrefix());
-            if(s.getSkipRatio() != SKIP_RATIO)
+            if(s.getSkipRatio() != -1)
                 o.put("skip_ratio", s.getSkipRatio());
+            if(s.getQueueType() != QueueType.FAIR)
+                o.put("queue_type", s.getQueueType().name());
             obj.put(Long.toString(key), o);
         });
         try {
-            Files.write(OtherUtil.getPath("serversettings.json"), obj.toString(4).getBytes());
+            Files.write(OtherUtil.getPath(SETTINGS_FILE), obj.toString(4).getBytes());
         } catch(IOException ex){
-            LoggerFactory.getLogger("Settings").warn("Failed to write to file: "+ex);
+            LOG.warn("Failed to write to file: "+ex);
         }
     }
 }
